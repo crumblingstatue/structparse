@@ -1,3 +1,6 @@
+//! A library for parsing (a simplified form of) structs
+#![warn(missing_docs, clippy::pedantic)]
+
 use winnow::{
     ascii::{digit1, multispace0},
     combinator::{alt, opt, separated, seq},
@@ -9,21 +12,30 @@ use winnow::{
 #[cfg(test)]
 mod tests;
 
+/// A parsed struct
 #[derive(Debug, PartialEq)]
 pub struct Struct<'s> {
-    name: &'s str,
-    fields: Vec<Field<'s>>,
+    /// The name of the struct
+    pub name: &'s str,
+    /// The fields of the struct
+    pub fields: Vec<Field<'s>>,
 }
 
+/// A struct field
 #[derive(Debug, PartialEq)]
-struct Field<'s> {
-    name: &'s str,
-    ty: Ty<'s>,
+pub struct Field<'s> {
+    /// Name of the struct field
+    pub name: &'s str,
+    /// Type of the struct field
+    pub ty: Ty<'s>,
 }
 
+/// A type
 #[derive(Debug, PartialEq)]
-enum Ty<'s> {
+pub enum Ty<'s> {
+    /// A type marked by an identifier
     Ident(&'s str),
+    /// An array type
     Array(Array<'s>),
 }
 fn alpha_or_underscore<'s>(input: &mut &'s str) -> PResult<&'s str> {
@@ -37,10 +49,13 @@ fn identifier<'s>(input: &mut &'s str) -> PResult<&'s str> {
     Ok(ident)
 }
 
+/// An array
 #[derive(Debug, PartialEq)]
-struct Array<'s> {
-    ty: Box<Ty<'s>>,
-    len: u64,
+pub struct Array<'s> {
+    /// The type of the elements
+    pub ty: Box<Ty<'s>>,
+    /// The length of the array
+    pub len: u64,
 }
 
 fn int(input: &mut &str) -> PResult<u64> {
@@ -98,6 +113,11 @@ fn fields<'s>(input: &mut &'s str) -> PResult<Vec<Field<'s>>> {
     Ok(fields)
 }
 
+/// Parse a struct
+///
+/// # Errors
+///
+/// Returns an error if the struct failed to parse.
 pub fn parse_struct<'s>(input: &mut &'s str) -> Result<Struct<'s>, ContextError> {
     seq! {Struct {
         _: multispace0,
@@ -110,5 +130,5 @@ pub fn parse_struct<'s>(input: &mut &'s str) -> Result<Struct<'s>, ContextError>
         _: '}'.context(StrContext::Expected(StrContextValue::CharLiteral('}'))),
     }}
     .parse_next(input)
-    .map_err(|e| e.into_inner().unwrap())
+    .map_err(|e| e.into_inner().unwrap_or_default())
 }

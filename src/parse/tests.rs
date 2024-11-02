@@ -1,5 +1,6 @@
 use {
-    crate::{array, int, Array, Field, Struct, Ty},
+    super::{array, int},
+    crate::{Array, Field, Struct, Ty},
     pretty_assertions::assert_eq,
 };
 

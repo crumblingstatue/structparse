@@ -5,7 +5,7 @@ use std::io::Read;
 fn main() {
     let mut input = String::new();
     std::io::stdin().read_to_string(&mut input).unwrap();
-    match structparse::parse_struct(&mut input.as_str()) {
+    match structparse::Struct::parse(&input) {
         Ok(s) => {
             println!("{s:#?}");
         }

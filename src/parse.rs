@@ -1,11 +1,11 @@
 use {
     crate::{Array, Field, Struct, Ty},
     winnow::{
+        ModalResult, Parser,
         ascii::{digit1, multispace0},
         combinator::{alt, opt, separated, seq},
         error::{ContextError, ErrMode, ParserError, StrContext, StrContextValue},
         token::take_while,
-        ModalResult, Parser,
     },
 };
 

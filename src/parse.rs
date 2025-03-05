@@ -88,5 +88,5 @@ pub(crate) fn parse_struct<'s>(input: &mut &'s str) -> Result<Struct<'s>, Contex
         _: '}'.context(StrContext::Expected(StrContextValue::CharLiteral('}'))),
     }}
     .parse_next(input)
-    .map_err(|e| e.into_inner().unwrap_or_default())
+    .map_err(|e: ErrMode<ContextError>| e.into_inner().unwrap_or_default())
 }

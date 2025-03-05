@@ -268,7 +268,7 @@ fn test_field_single() {
             name: "foo",
             ty: Ty::Ident("i32")
         },
-    )
+    );
 }
 
 #[test]

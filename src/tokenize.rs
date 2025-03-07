@@ -98,7 +98,6 @@ pub(crate) fn tokenize(src: &str) -> Result<Vec<Token>, TokenizeError> {
                     }
                     _ => {
                         let text = &src[start..i];
-                        dbg!(text);
                         let kind = match text {
                             "struct" => TokenKind::KwStruct,
                             _ => kind,

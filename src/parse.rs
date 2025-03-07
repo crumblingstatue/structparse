@@ -46,7 +46,6 @@ impl<'a, T: Iterator<Item = &'a Token>> TokIterExt for T {
 }
 
 pub fn parse_struct<'a>(src: &'a str, tokens: &[Token]) -> Result<Struct<'a>, StructParseError> {
-    dbg!(tokens);
     let mut toks = tokens.iter();
     toks.expect_tok(TokenKind::KwStruct)?;
     let name_tok = toks.expect_tok(TokenKind::Ident)?;

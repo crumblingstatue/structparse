@@ -8,9 +8,13 @@ pub struct Token {
 enum TokenKind {
     KwStruct,
     Ident,
+    NumLit,
     LBrace,
     RBrace,
+    LBracket,
+    RBracket,
     Colon,
+    Semi,
     Comma,
 }
 
@@ -22,13 +26,13 @@ enum Status {
 }
 
 #[derive(Debug)]
-struct TokenizeError {
+pub struct TokenizeError {
     span: std::ops::Range<usize>,
     kind: TokenizeErrorKind,
 }
 
 #[derive(Debug)]
-enum TokenizeErrorKind {
+pub enum TokenizeErrorKind {
     UnexpectedByte,
 }
 
@@ -49,9 +53,21 @@ pub(crate) fn tokenize(src: &str) -> Result<Vec<Token>, TokenizeError> {
                             span: i..i + 1,
                             kind: TokenKind::RBrace,
                         }),
+                        b'[' => tokens.push(Token {
+                            span: i..i + 1,
+                            kind: TokenKind::LBracket,
+                        }),
+                        b']' => tokens.push(Token {
+                            span: i..i + 1,
+                            kind: TokenKind::RBracket,
+                        }),
                         b':' => tokens.push(Token {
                             span: i..i + 1,
                             kind: TokenKind::Colon,
+                        }),
+                        b';' => tokens.push(Token {
+                            span: i..i + 1,
+                            kind: TokenKind::Semi,
                         }),
                         b',' => tokens.push(Token {
                             span: i..i + 1,
@@ -66,6 +82,12 @@ pub(crate) fn tokenize(src: &str) -> Result<Vec<Token>, TokenizeError> {
                                 kind: TokenKind::Ident,
                             }
                         }
+                        b'0'..=b'9' => {
+                            status = Status::InToken {
+                                start: i,
+                                kind: TokenKind::NumLit,
+                            }
+                        }
                         _ => {}
                     }
                     break;
@@ -75,11 +97,11 @@ pub(crate) fn tokenize(src: &str) -> Result<Vec<Token>, TokenizeError> {
                         break;
                     }
                     _ => {
-                        let word = &src[start..i];
-                        dbg!(word);
-                        let kind = match word {
+                        let text = &src[start..i];
+                        dbg!(text);
+                        let kind = match text {
                             "struct" => TokenKind::KwStruct,
-                            _ => TokenKind::Ident,
+                            _ => kind,
                         };
                         tokens.push(Token {
                             span: start..i,
@@ -110,34 +132,85 @@ pub(crate) fn tokenize(src: &str) -> Result<Vec<Token>, TokenizeError> {
     Ok(tokens)
 }
 
-#[test]
-fn test_tokenize_simple_empty() {
-    assert_eq!(
-        tokenize("struct Foo {}").unwrap(),
-        &[
-            Token {
-                span: 0..6,
-                kind: TokenKind::KwStruct
-            },
-            Token {
-                span: 7..10,
-                kind: TokenKind::Ident
-            },
-            Token {
-                span: 11..12,
-                kind: TokenKind::LBrace
-            },
-            Token {
-                span: 12..13,
-                kind: TokenKind::RBrace
-            }
-        ],
-    );
-}
-
 #[cfg(test)]
 mod tests {
     use {super::*, pretty_assertions::assert_eq};
+    #[test]
+    fn test_tokenize_simple_empty() {
+        assert_eq!(
+            tokenize("struct Foo {}").unwrap(),
+            &[
+                Token {
+                    span: 0..6,
+                    kind: TokenKind::KwStruct
+                },
+                Token {
+                    span: 7..10,
+                    kind: TokenKind::Ident
+                },
+                Token {
+                    span: 11..12,
+                    kind: TokenKind::LBrace
+                },
+                Token {
+                    span: 12..13,
+                    kind: TokenKind::RBrace
+                }
+            ],
+        );
+    }
+    #[test]
+    fn test_tokenize_array_field() {
+        assert_eq!(
+            tokenize("struct Foo {array: [u8; 10]}").unwrap(),
+            &[
+                Token {
+                    span: 0..6,
+                    kind: TokenKind::KwStruct
+                },
+                Token {
+                    span: 7..10,
+                    kind: TokenKind::Ident
+                },
+                Token {
+                    span: 11..12,
+                    kind: TokenKind::LBrace
+                },
+                Token {
+                    span: 12..17,
+                    kind: TokenKind::Ident
+                },
+                Token {
+                    span: 17..18,
+                    kind: TokenKind::Colon
+                },
+                Token {
+                    span: 19..20,
+                    kind: TokenKind::LBracket
+                },
+                Token {
+                    span: 20..22,
+                    kind: TokenKind::Ident
+                },
+                Token {
+                    span: 22..23,
+                    kind: TokenKind::Semi,
+                },
+                Token {
+                    span: 24..26,
+                    kind: TokenKind::NumLit,
+                },
+                Token {
+                    span: 26..27,
+                    kind: TokenKind::RBracket
+                },
+                Token {
+                    span: 27..28,
+                    kind: TokenKind::RBrace
+                }
+            ],
+        );
+    }
     #[test]
     fn test_tokenize_empty_multiline() {
         assert_eq!(

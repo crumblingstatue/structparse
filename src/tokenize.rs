@@ -1,18 +1,18 @@
 #[derive(Clone, PartialEq, Debug)]
 pub struct Token {
-    span: std::ops::Range<usize>,
-    kind: TokenKind,
+    pub span: std::ops::Range<usize>,
+    pub kind: TokenKind,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
-enum TokenKind {
+pub enum TokenKind {
     KwStruct,
     Ident,
     NumLit,
     LBrace,
     RBrace,
-    LBracket,
-    RBracket,
+    LSqBracket,
+    RSqBracket,
     Colon,
     Semi,
     Comma,
@@ -27,8 +27,8 @@ enum Status {
 
 #[derive(Debug)]
 pub struct TokenizeError {
-    span: std::ops::Range<usize>,
-    kind: TokenizeErrorKind,
+    pub span: std::ops::Range<usize>,
+    pub kind: TokenizeErrorKind,
 }
 
 #[derive(Debug)]
@@ -55,11 +55,11 @@ pub(crate) fn tokenize(src: &str) -> Result<Vec<Token>, TokenizeError> {
                         }),
                         b'[' => tokens.push(Token {
                             span: i..i + 1,
-                            kind: TokenKind::LBracket,
+                            kind: TokenKind::LSqBracket,
                         }),
                         b']' => tokens.push(Token {
                             span: i..i + 1,
-                            kind: TokenKind::RBracket,
+                            kind: TokenKind::RSqBracket,
                         }),
                         b':' => tokens.push(Token {
                             span: i..i + 1,
@@ -120,9 +120,8 @@ pub(crate) fn tokenize(src: &str) -> Result<Vec<Token>, TokenizeError> {
                     }
                 },
                 Status::InComment => {
-                    match b {
-                        b'\n' => status = Status::Init,
-                        _ => {}
+                    if b == b'\n' {
+                        status = Status::Init;
                     }
                     break;
                 }
@@ -134,6 +133,7 @@ pub(crate) fn tokenize(src: &str) -> Result<Vec<Token>, TokenizeError> {
 
 #[cfg(test)]
 mod tests {
+    #![expect(clippy::unwrap_used)]
     use {super::*, pretty_assertions::assert_eq};
     #[test]
     fn test_tokenize_simple_empty() {
@@ -186,7 +186,7 @@ mod tests {
                 },
                 Token {
                     span: 19..20,
-                    kind: TokenKind::LBracket
+                    kind: TokenKind::LSqBracket
                 },
                 Token {
                     span: 20..22,
@@ -202,7 +202,7 @@ mod tests {
                 },
                 Token {
                     span: 26..27,
-                    kind: TokenKind::RBracket
+                    kind: TokenKind::RSqBracket
                 },
                 Token {
                     span: 27..28,

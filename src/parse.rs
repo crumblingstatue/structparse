@@ -1,92 +1,112 @@
 use {
-    crate::{Array, Field, Struct, Ty},
-    winnow::{
-        ModalResult, Parser,
-        ascii::{digit1, multispace0},
-        combinator::{alt, opt, separated, seq},
-        error::{ContextError, ErrMode, ParserError, StrContext, StrContextValue},
-        token::take_while,
+    crate::{
+        Array, Field, Struct, StructParseError, StructParseErrorKind, Ty,
+        tokenize::{Token, TokenKind},
     },
+    std::num::ParseIntError,
 };
 
 #[cfg(test)]
 mod tests;
 
-fn int(input: &mut &str) -> ModalResult<u64> {
-    multispace0.parse_next(input)?;
-    let num_str = digit1.parse_next(input)?;
-    let num: u64 = num_str.parse().map_err(|_e| ErrMode::from_input(input))?;
-    Ok(num)
+trait TokIterExt {
+    fn expect_tok(&mut self, tok_kind: TokenKind) -> Result<Token, StructParseError>;
+    fn next_tok(&mut self) -> Result<Token, StructParseError>;
 }
 
-fn array<'s>(input: &mut &'s str) -> ModalResult<Array<'s>> {
-    seq! {Array {
-        _: multispace0,
-        _: '['.context(StrContext::Expected(StrContextValue::CharLiteral('['))),
-        _: multispace0,
-        ty: ty.context(StrContext::Expected(StrContextValue::Description("type"))).map(Box::new),
-        _: multispace0,
-        _: ';'.context(StrContext::Expected(StrContextValue::CharLiteral(';'))),
-        _: multispace0,
-        len: int,
-        _: multispace0,
-        _: ']'.context(StrContext::Expected(StrContextValue::CharLiteral(']'))),,
-    }}
-    .parse_next(input)
+impl<'a, T: Iterator<Item = &'a Token>> TokIterExt for T {
+    fn expect_tok(&mut self, tok_kind: TokenKind) -> Result<Token, StructParseError> {
+        match self.next() {
+            Some(tok) => {
+                if tok_kind == tok.kind {
+                    Ok(tok.clone())
+                } else {
+                    Err(StructParseError {
+                        span: tok.span.clone(),
+                        kind: StructParseErrorKind::UnexpectedTok(tok.kind),
+                    })
+                }
+            }
+            None => Err(StructParseError {
+                span: 0..0,
+                kind: StructParseErrorKind::UnexpectedEnd,
+            }),
+        }
+    }
+
+    fn next_tok(&mut self) -> Result<Token, StructParseError> {
+        match self.next() {
+            Some(tok) => Ok(tok.clone()),
+            None => Err(StructParseError {
+                span: 0..0,
+                kind: StructParseErrorKind::UnexpectedEnd,
+            }),
+        }
+    }
 }
 
-fn ty<'s>(input: &mut &'s str) -> ModalResult<Ty<'s>> {
-    alt((identifier.map(Ty::Ident), array.map(Ty::Array))).parse_next(input)
+pub fn parse_struct<'a>(src: &'a str, tokens: &[Token]) -> Result<Struct<'a>, StructParseError> {
+    dbg!(tokens);
+    let mut toks = tokens.iter();
+    toks.expect_tok(TokenKind::KwStruct)?;
+    let name_tok = toks.expect_tok(TokenKind::Ident)?;
+    toks.expect_tok(TokenKind::LBrace)?;
+    let mut struct_ = Struct {
+        name: &src[name_tok.span.clone()],
+        fields: Vec::new(),
+    };
+    while let Some(field) = parse_field(src, &mut toks)? {
+        struct_.fields.push(field);
+    }
+    Ok(struct_)
 }
 
-fn field<'s>(input: &mut &'s str) -> ModalResult<Field<'s>> {
-    let name = identifier
-        .context(StrContext::Expected(StrContextValue::Description(
-            "field name",
-        )))
-        .parse_next(input)?;
-    ":".parse_next(input)?;
-    let ty = ty
-        .context(StrContext::Expected(StrContextValue::Description("type")))
-        .parse_next(input)?;
-    Ok(Field { name, ty })
+fn parse_field<'a, 'tok>(
+    src: &'a str,
+    tokens: &mut impl Iterator<Item = &'tok Token>,
+) -> Result<Option<Field<'a>>, StructParseError> {
+    let tok = tokens.next_tok()?;
+    match tok.kind {
+        TokenKind::Ident => {
+            let name = &src[tok.span.clone()];
+            tokens.expect_tok(TokenKind::Colon)?;
+            let ty = parse_ty(src, tokens)?;
+            Ok(Some(Field { name, ty }))
+        }
+        TokenKind::RBrace => Ok(None),
+        // Comma consumed, try parsing field again
+        TokenKind::Comma => parse_field(src, tokens),
+        _ => todo!("{tok:?}"),
+    }
 }
 
-fn field_sep(input: &mut &str) -> ModalResult<()> {
-    multispace0.parse_next(input)?;
-    ','.parse_next(input)?;
-    multispace0.parse_next(input)?;
-    Ok(())
+fn parse_ty<'a, 'tok>(
+    src: &'a str,
+    tokens: &mut impl Iterator<Item = &'tok Token>,
+) -> Result<Ty<'a>, StructParseError> {
+    let tok = tokens.next_tok()?;
+    match tok.kind {
+        TokenKind::Ident => Ok(Ty::Ident(&src[tok.span.clone()])),
+        TokenKind::LSqBracket => Ok(Ty::Array(parse_array(src, tokens)?)),
+        _ => todo!("{tok:?}"),
+    }
 }
 
-fn fields<'s>(input: &mut &'s str) -> ModalResult<Vec<Field<'s>>> {
-    let fields = separated(0.., field, field_sep).parse_next(input)?;
-    opt(field_sep).parse_next(input)?;
-    Ok(fields)
-}
-
-fn alpha_or_underscore<'s>(input: &mut &'s str) -> ModalResult<&'s str> {
-    take_while(1.., |ch: char| ch.is_alphanumeric() || ch == '_').parse_next(input)
-}
-
-fn identifier<'s>(input: &mut &'s str) -> ModalResult<&'s str> {
-    multispace0.parse_next(input)?;
-    let ident = alpha_or_underscore.parse_next(input)?;
-    multispace0.parse_next(input)?;
-    Ok(ident)
-}
-
-pub(crate) fn parse_struct<'s>(input: &mut &'s str) -> Result<Struct<'s>, ContextError> {
-    seq! {Struct {
-        _: multispace0,
-        _: "struct".context(StrContext::Expected(StrContextValue::StringLiteral("struct"))),
-        name: identifier.context(StrContext::Expected(StrContextValue::Description("identifier"))),
-        _: '{'.context(StrContext::Expected(StrContextValue::CharLiteral('{'))),
-        _: multispace0,
-        fields: fields,
-        _: multispace0,
-        _: '}'.context(StrContext::Expected(StrContextValue::CharLiteral('}'))),
-    }}
-    .parse_next(input)
-    .map_err(|e: ErrMode<ContextError>| e.into_inner().unwrap_or_default())
+fn parse_array<'a, 'tok>(
+    src: &'a str,
+    tokens: &mut impl Iterator<Item = &'tok Token>,
+) -> Result<Array<'a>, StructParseError> {
+    let ty = parse_ty(src, tokens)?;
+    tokens.expect_tok(TokenKind::Semi)?;
+    let len_tok = tokens.expect_tok(TokenKind::NumLit)?;
+    let len: u64 =
+        src[len_tok.span.clone()].parse().map_err(|e: ParseIntError| StructParseError {
+            span: len_tok.span.clone(),
+            kind: e.into(),
+        })?;
+    tokens.expect_tok(TokenKind::RSqBracket)?;
+    Ok(Array {
+        ty: Box::new(ty),
+        len,
+    })
 }

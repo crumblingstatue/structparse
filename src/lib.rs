@@ -1,5 +1,11 @@
 //! A library for parsing (a simplified form of) structs
-#![warn(missing_docs, clippy::pedantic)]
+#![warn(missing_docs, clippy::pedantic, clippy::unwrap_used)]
+
+use {
+    std::num::ParseIntError,
+    thiserror::Error,
+    tokenize::{TokenKind, TokenizeErrorKind, tokenize},
+};
 
 mod parse;
 mod tokenize;
@@ -19,18 +25,40 @@ impl<'s> Struct<'s> {
     /// # Errors
     ///
     /// Returns an error if the text failed to parse as a struct.
-    pub fn parse(mut input: &'s str) -> Result<Self, StructParseError> {
-        parse::parse_struct(&mut input).map_err(StructParseError)
+    pub fn parse(input: &'s str) -> Result<Self, StructParseError> {
+        match tokenize(input) {
+            Ok(tokens) => parse::parse_struct(input, &tokens),
+            Err(e) => Err(StructParseError {
+                span: e.span,
+                kind: StructParseErrorKind::Tokenize(e.kind),
+            }),
+        }
     }
 }
 
 /// Error that can happen while parsing a struct
-pub struct StructParseError(winnow::error::ContextError);
+#[derive(Debug, Error)]
+#[error("Parse error at {span:?}: {kind}")]
+pub struct StructParseError {
+    span: std::ops::Range<usize>,
+    kind: StructParseErrorKind,
+}
 
-impl std::fmt::Display for StructParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
+/// Kind of error that can happen while parsing a struct
+#[derive(Debug, Error)]
+pub enum StructParseErrorKind {
+    /// Tokenize error
+    #[error("Tokenize error: {0:?}")]
+    Tokenize(TokenizeErrorKind),
+    /// Unexpected end of token stream
+    #[error("Unexpected end")]
+    UnexpectedEnd,
+    /// Unexpected token
+    #[error("Unexpected token: {0:?}")]
+    UnexpectedTok(TokenKind),
+    /// Num parse error
+    #[error("Num parse error: {0}")]
+    NumParse(#[from] ParseIntError),
 }
 
 /// A struct field

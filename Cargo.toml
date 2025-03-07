@@ -3,8 +3,8 @@ name = "structparse"
 version = "0.1.0"
 edition = "2024"
 
-[dependencies]
-winnow = "0.7.3"
-
 [dev-dependencies]
 pretty_assertions = "1.4"
+
+[dependencies]
+thiserror = "2.0.12"

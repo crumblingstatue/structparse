@@ -2,6 +2,7 @@
 #![warn(missing_docs, clippy::pedantic)]
 
 mod parse;
+mod tokenize;
 
 /// A parsed struct
 #[derive(Debug, PartialEq)]

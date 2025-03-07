@@ -76,7 +76,7 @@ fn parse_field<'a, 'tok>(
         TokenKind::RBrace => Ok(None),
         // Comma consumed, try parsing field again
         TokenKind::Comma => parse_field(src, tokens),
-        _ => todo!("{tok:?}"),
+        _ => Err(StructParseError::unexpected(tok)),
     }
 }
 
@@ -88,7 +88,7 @@ fn parse_ty<'a, 'tok>(
     match tok.kind {
         TokenKind::Ident => Ok(Ty::Ident(&src[tok.span.clone()])),
         TokenKind::LSqBracket => Ok(Ty::Array(parse_array(src, tokens)?)),
-        _ => todo!("{tok:?}"),
+        _ => Err(StructParseError::unexpected(tok)),
     }
 }
 

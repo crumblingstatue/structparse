@@ -43,6 +43,14 @@ pub struct StructParseError {
     span: std::ops::Range<usize>,
     kind: StructParseErrorKind,
 }
+impl StructParseError {
+    fn unexpected(tok: tokenize::Token) -> Self {
+        Self {
+            span: tok.span,
+            kind: StructParseErrorKind::UnexpectedTok(tok.kind),
+        }
+    }
+}
 
 /// Kind of error that can happen while parsing a struct
 #[derive(Debug, Error)]
